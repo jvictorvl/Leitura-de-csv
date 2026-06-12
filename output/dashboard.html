@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Fechamento Diario</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { color: #333; font-size: 24px; }
+        .header p { color: #666; margin-top: 5px; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+        .card .valor { font-size: 24px; font-weight: bold; color: #1976D2; }
+        .card .label { font-size: 12px; color: #666; margin-top: 5px; text-transform: uppercase; }
+        .chart-container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .chart-container h3 { margin-bottom: 15px; color: #333; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; }
+        tr:hover { background: #f0f7ff; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Dashboard de Fechamento Diario</h1>
+        <p>01/04/2026 a 30/04/2026 | 25 dias</p>
+    </div>
+
+    <div class="cards">
+        <div class="card"><div class="valor">R$ 62.375,12</div><div class="label">Receita Total</div></div>
+        <div class="card"><div class="valor">R$ 2.495,00</div><div class="label">Receita Media/Dia</div></div>
+        <div class="card"><div class="valor">3235</div><div class="label">Total Refeicoes</div></div>
+        <div class="card"><div class="valor">1538 / 723</div><div class="label">Marmitas G / P</div></div>
+        <div class="card"><div class="valor">R$ 274,32</div><div class="label">Margem Media/Dia</div></div>
+        <div class="card"><div class="valor">0</div><div class="label">Dias com Correcao</div></div>
+    </div>
+
+    <div class="chart-container">
+        <h3>Receita Diaria + Media Movel (7 dias)</h3>
+        <canvas id="chartReceita"></canvas>
+    </div>
+
+    <div class="grid-2">
+        <div class="chart-container">
+            <h3>Receita Media por Dia da Semana</h3>
+            <canvas id="chartDiaSemana"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Refeicoes por Dia da Semana</h3>
+            <canvas id="chartRefeicoesDia"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <h3>Evolucao de Marmitas (Grandes vs Pequenas)</h3>
+        <canvas id="chartMarmitas"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Margem Diaria (Receita - Despesas)</h3>
+        <canvas id="chartMargem"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Anomalias Detectadas</h3><table><tr><th>Data</th><th>Dia</th><th>Valor</th><th>Tipo</th><th>Desvio</th><th>Notas</th></tr><tr><td>20/04/2026</td><td>segunda-feira</td><td>R$ 1.202,00</td><td style="color:#c62828;font-weight:bold">ABAIXO</td><td>R$ -1.293,00</td><td>Fechamento</td></tr></table>
+    </div>
+
+    <script>
+        const datas = ["01/04", "02/04", "04/04", "06/04", "07/04", "08/04", "09/04", "10/04", "11/04", "13/04", "14/04", "15/04", "16/04", "17/04", "18/04", "20/04", "21/04", "22/04", "23/04", "24/04", "25/04", "27/04", "28/04", "29/04", "30/04"];
+        const receitas = [3476.92, 2433.4, 2181.0, 1862.4, 2742.6, 3683.54, 2540.0, 2618.9, 3632.56, 2344.7, 2049.0, 2093.4, 3278.3, 2945.9, 3129.2, 1202.0, 1447.9, 2312.8, 2084.9, 2467.4, 3041.1, 1813.0, 2060.9, 2248.0, 2685.3];
+        const mm7 = [3476.92, 2955.16, 2697.11, 2488.43, 2539.26, 2729.98, 2702.84, 2580.26, 2751.57, 2774.96, 2801.61, 2708.87, 2650.98, 2708.97, 2781.87, 2434.64, 2306.53, 2344.21, 2343.0, 2227.16, 2240.76, 2052.73, 2175.43, 2289.73, 2342.94];
+        const diasLabels = ["Segunda", "Ter\u00e7a", "Quarta", "Quinta", "Sexta", "S\u00e1bado"];
+        const diasReceita = [1805.53, 2075.1, 2762.93, 2604.38, 2677.4, 2995.97];
+        const diasRefeicoes = [188.0, 85.5, 94.4, 160.0, 120.3, 127.0];
+        const marmitasG = [31.0, 132.0, 41.0, 106.0, 37.0, 24.0, 135.0, 41.0, 52.0, 121.0, 40.0, 28.0, 79.0, 49.0, 48.0, 136.0, 29.0, 20.0, 42.0, 34.0, 44.0, 175.0, 30.0, 26.0, 38.0];
+        const marmitasP = [41.0, 31.0, 22.0, 25.0, 18.0, 31.0, 23.0, 31.0, 42.0, 18.0, 32.0, 22.0, 35.0, 26.0, 31.0, 23.0, 14.0, 39.0, 20.0, 44.0, 40.0, 25.0, 24.0, 31.0, 35.0];
+        const margens = [1446.87, 1483.37, 887.25, -1366.38, -1836.76, 3433.54, -5378.44, 1961.77, 3087.48, -1472.25, 1367.51, -726.55, 1561.2, 547.85, 1762.09, -2096.8, 1367.9, 19.83, -15.05, 796.21, 1067.52, -1472.62, 319.5, -576.21, 689.1];
+
+        // Grafico Receita Diaria
+        new Chart(document.getElementById('chartReceita'), {
+            type: 'bar',
+            data: {
+                labels: datas,
+                datasets: [
+                    { label: 'Receita', data: receitas, backgroundColor: 'rgba(33,150,243,0.3)', borderColor: 'rgba(33,150,243,1)', borderWidth: 1 },
+                    { label: 'Media Movel 7d', data: mm7, type: 'line', borderColor: '#1565C0', borderWidth: 2, pointRadius: 0, fill: false }
+                ]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'top' } } }
+        });
+
+        // Dia da Semana - Receita
+        new Chart(document.getElementById('chartDiaSemana'), {
+            type: 'bar',
+            data: {
+                labels: diasLabels,
+                datasets: [{ label: 'Receita Media (R$)', data: diasReceita, backgroundColor: 'rgba(33,150,243,0.6)' }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // Dia da Semana - Refeicoes
+        new Chart(document.getElementById('chartRefeicoesDia'), {
+            type: 'bar',
+            data: {
+                labels: diasLabels,
+                datasets: [{ label: 'Refeicoes Media', data: diasRefeicoes, backgroundColor: 'rgba(76,175,80,0.6)' }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // Marmitas
+        new Chart(document.getElementById('chartMarmitas'), {
+            type: 'line',
+            data: {
+                labels: datas,
+                datasets: [
+                    { label: 'Grandes', data: marmitasG, borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', fill: true },
+                    { label: 'Pequenas', data: marmitasP, borderColor: '#FFC107', backgroundColor: 'rgba(255,193,7,0.1)', fill: true }
+                ]
+            },
+            options: { responsive: true }
+        });
+
+        // Margem
+        new Chart(document.getElementById('chartMargem'), {
+            type: 'bar',
+            data: {
+                labels: datas,
+                datasets: [{
+                    label: 'Margem (R$)',
+                    data: margens,
+                    backgroundColor: margens.map(v => v >= 0 ? 'rgba(76,175,80,0.6)' : 'rgba(244,67,54,0.6)')
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+    </script>
+</body>
+</html>

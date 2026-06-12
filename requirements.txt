@@ -1,0 +1,9 @@
+# Este script NAO requer dependencias externas.
+# Usa apenas a biblioteca padrao do Python (csv, json, statistics, etc.)
+#
+# Versao minima do Python: 3.8+
+#
+# OPCIONAL: Se quiser graficos mais avancados localmente, instale:
+# pandas>=2.0.0
+# matplotlib>=3.7.0
+# numpy>=1.24.0
