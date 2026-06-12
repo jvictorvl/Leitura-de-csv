@@ -377,33 +377,34 @@ def salvar_csv_resultado(dados: list, arquivo: str, campos: list):
 
 
 def gerar_html_dashboard(dados: list, resumo: dict, dia_semana: list, por_mes: list, anomalias: list, pasta_saida: str):
-    """Gera dashboard HTML com graficos usando Chart.js (via CDN ou inline)."""
+    """Gera dashboard HTML com graficos e filtros interativos usando Chart.js."""
 
-    # Preparar dados para graficos
+    # Preparar dados para graficos — cada registro vira um objeto JSON
     dados_ord = sorted(dados, key=lambda x: x.get("business_date_dt") or datetime.min)
 
-    # Datas e receitas para grafico de linha
-    datas_labels = [r["business_date_dt"].strftime("%d/%m") for r in dados_ord if r.get("business_date_dt")]
-    receitas = [r["daily_result_num"] for r in dados_ord if r.get("business_date_dt")]
+    # Montar array de objetos com todos os campos necessarios
+    registros_json = []
+    for r in dados_ord:
+        if not r.get("business_date_dt"):
+            continue
+        registros_json.append({
+            "data": r["business_date_dt"].strftime("%d/%m"),
+            "data_full": r["business_date_dt"].strftime("%Y-%m-%d"),
+            "mes": r["business_date_dt"].strftime("%Y-%m"),
+            "weekday": r.get("weekday_lower", ""),
+            "weekday_num": r.get("weekday_num", -1),
+            "receita": round(r["daily_result_num"], 2),
+            "despesa": round(r["daily_expenses_num"], 2),
+            "refeicoes": round(r["meals_quantity_num"], 0),
+            "refeicoes_salao": round(r["restaurant_meals_quantity_num"], 0),
+            "marmitas_g": round(r["large_marmitas_quantity_num"], 0),
+            "marmitas_p": round(r["small_marmitas_quantity_num"], 0),
+            "total_marmitas": round(r.get("total_marmitas", 0), 0),
+            "margem": round(r["margem"], 2) if r["margem"] is not None else 0,
+        })
 
-    # Media movel
-    mm7 = []
-    for i in range(len(receitas)):
-        inicio = max(0, i - 6)
-        mm7.append(round(mean(receitas[inicio:i+1]), 2))
-
-    # Dia da semana
-    dias_labels_chart = [d["dia"] for d in dia_semana]
-    dias_receita = [round(d["receita_media"], 2) for d in dia_semana]
-    dias_refeicoes = [round(d["refeicoes_media"], 1) for d in dia_semana]
-
-    # Marmitas
-    marmitas_g = [r["large_marmitas_quantity_num"] for r in dados_ord if r.get("business_date_dt")]
-    marmitas_p = [r["small_marmitas_quantity_num"] for r in dados_ord if r.get("business_date_dt")]
-
-    # Margem
-    margens = [round(r["margem"], 2) if r["margem"] is not None else 0 for r in dados_ord if r.get("business_date_dt")]
-    margem_cores = ["'rgba(76,175,80,0.6)'" if m >= 0 else "'rgba(244,67,54,0.6)'" for m in margens]
+    # Lista de meses unicos
+    meses_unicos = sorted(set(r["mes"] for r in registros_json))
 
     # Tabela anomalias
     anomalias_html = ""
@@ -413,6 +414,9 @@ def gerar_html_dashboard(dados: list, resumo: dict, dia_semana: list, por_mes: l
             cor = "#c62828" if a["tipo"] == "ABAIXO" else "#2e7d32"
             anomalias_html += f'<tr><td>{a["data"]}</td><td>{a["dia_semana"]}</td><td>{formatar_moeda(a["valor"])}</td><td style="color:{cor};font-weight:bold">{a["tipo"]}</td><td>{formatar_moeda(a["desvio_media"])}</td><td>{a["notas"][:60]}</td></tr>'
         anomalias_html += "</table>"
+
+    # Gerar opcoes de meses para filtro
+    meses_options = "".join(f'<option value="{m}">{m}</option>' for m in meses_unicos)
 
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -424,13 +428,25 @@ def gerar_html_dashboard(dados: list, resumo: dict, dia_semana: list, por_mes: l
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }}
-        .header {{ text-align: center; margin-bottom: 30px; }}
+        .header {{ text-align: center; margin-bottom: 20px; }}
         .header h1 {{ color: #333; font-size: 24px; }}
         .header p {{ color: #666; margin-top: 5px; }}
-        .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }}
-        .card {{ background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }}
-        .card .valor {{ font-size: 24px; font-weight: bold; color: #1976D2; }}
-        .card .label {{ font-size: 12px; color: #666; margin-top: 5px; text-transform: uppercase; }}
+
+        /* FILTROS */
+        .filtros {{ background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }}
+        .filtros h3 {{ margin-bottom: 12px; color: #333; font-size: 16px; }}
+        .filtros-grid {{ display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }}
+        .filtro-grupo {{ display: flex; flex-direction: column; gap: 5px; }}
+        .filtro-grupo label {{ font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; }}
+        .filtro-grupo select {{ padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: white; cursor: pointer; min-width: 160px; }}
+        .filtro-grupo select:focus {{ outline: none; border-color: #1976D2; box-shadow: 0 0 0 2px rgba(25,118,210,0.2); }}
+        .btn-limpar {{ padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; align-self: flex-end; }}
+        .btn-limpar:hover {{ background: #d32f2f; }}
+
+        .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }}
+        .card {{ background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }}
+        .card .valor {{ font-size: 22px; font-weight: bold; color: #1976D2; }}
+        .card .label {{ font-size: 11px; color: #666; margin-top: 5px; text-transform: uppercase; }}
         .chart-container {{ background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }}
         .chart-container h3 {{ margin-bottom: 15px; color: #333; }}
         .grid-2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }}
@@ -439,36 +455,77 @@ def gerar_html_dashboard(dados: list, resumo: dict, dia_semana: list, por_mes: l
         th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
         th {{ background: #f8f9fa; font-weight: 600; }}
         tr:hover {{ background: #f0f7ff; }}
+        .filtro-ativo {{ background: #e3f2fd !important; border-color: #1976D2 !important; }}
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Dashboard de Fechamento Diario</h1>
-        <p>{resumo['periodo_inicio']} a {resumo['periodo_fim']} | {resumo['total_dias']} dias</p>
+        <p id="headerPeriodo">{resumo['periodo_inicio']} a {resumo['periodo_fim']} | {resumo['total_dias']} dias</p>
     </div>
 
+    <!-- FILTROS -->
+    <div class="filtros">
+        <h3>Filtros</h3>
+        <div class="filtros-grid">
+            <div class="filtro-grupo">
+                <label>Tipo de Refeicao</label>
+                <select id="filtroTipo">
+                    <option value="todas">Todas</option>
+                    <option value="salao">Somente Salao</option>
+                    <option value="marmitas_g">Somente Marmitas Grandes</option>
+                    <option value="marmitas_p">Somente Marmitas Pequenas</option>
+                    <option value="marmitas_todas">Todas as Marmitas (G+P)</option>
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Mes</label>
+                <select id="filtroMes">
+                    <option value="todos">Todos os meses</option>
+                    {meses_options}
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Dia da Semana</label>
+                <select id="filtroDia">
+                    <option value="todos">Todos os dias</option>
+                    <option value="0">Segunda</option>
+                    <option value="1">Terca</option>
+                    <option value="2">Quarta</option>
+                    <option value="3">Quinta</option>
+                    <option value="4">Sexta</option>
+                    <option value="5">Sabado</option>
+                    <option value="6">Domingo</option>
+                </select>
+            </div>
+            <button class="btn-limpar" onclick="limparFiltros()">Limpar Filtros</button>
+        </div>
+    </div>
+
+    <!-- CARDS RESUMO -->
     <div class="cards">
-        <div class="card"><div class="valor">{formatar_moeda(resumo['receita_total'])}</div><div class="label">Receita Total</div></div>
-        <div class="card"><div class="valor">{formatar_moeda(resumo['receita_media'])}</div><div class="label">Receita Media/Dia</div></div>
-        <div class="card"><div class="valor">{resumo['total_refeicoes']:.0f}</div><div class="label">Total Refeicoes</div></div>
-        <div class="card"><div class="valor">{resumo['total_marmitas_grandes']:.0f} / {resumo['total_marmitas_pequenas']:.0f}</div><div class="label">Marmitas G / P</div></div>
-        <div class="card"><div class="valor">{formatar_moeda(resumo['margem_media'])}</div><div class="label">Margem Media/Dia</div></div>
-        <div class="card"><div class="valor">{resumo['dias_com_correcao']}</div><div class="label">Dias com Correcao</div></div>
+        <div class="card"><div class="valor" id="cardReceita">-</div><div class="label">Receita Total</div></div>
+        <div class="card"><div class="valor" id="cardReceitaMedia">-</div><div class="label">Receita Media/Dia</div></div>
+        <div class="card"><div class="valor" id="cardRefeicoes">-</div><div class="label">Total Refeicoes</div></div>
+        <div class="card"><div class="valor" id="cardSalao">-</div><div class="label">Refeicoes Salao</div></div>
+        <div class="card"><div class="valor" id="cardMarmitas">-</div><div class="label">Marmitas G / P</div></div>
+        <div class="card"><div class="valor" id="cardMargem">-</div><div class="label">Margem Media/Dia</div></div>
     </div>
 
+    <!-- GRAFICOS -->
     <div class="chart-container">
-        <h3>Receita Diaria + Media Movel (7 dias)</h3>
-        <canvas id="chartReceita"></canvas>
+        <h3 id="tituloGraficoPrincipal">Receita Diaria + Media Movel (7 dias)</h3>
+        <canvas id="chartPrincipal"></canvas>
     </div>
 
     <div class="grid-2">
         <div class="chart-container">
-            <h3>Receita Media por Dia da Semana</h3>
+            <h3>Por Dia da Semana</h3>
             <canvas id="chartDiaSemana"></canvas>
         </div>
         <div class="chart-container">
-            <h3>Refeicoes por Dia da Semana</h3>
-            <canvas id="chartRefeicoesDia"></canvas>
+            <h3 id="tituloQuantidades">Quantidades por Dia</h3>
+            <canvas id="chartQuantidades"></canvas>
         </div>
     </div>
 
@@ -487,75 +544,225 @@ def gerar_html_dashboard(dados: list, resumo: dict, dia_semana: list, por_mes: l
     </div>
 
     <script>
-        const datas = {json.dumps(datas_labels)};
-        const receitas = {json.dumps(receitas)};
-        const mm7 = {json.dumps(mm7)};
-        const diasLabels = {json.dumps(dias_labels_chart)};
-        const diasReceita = {json.dumps(dias_receita)};
-        const diasRefeicoes = {json.dumps(dias_refeicoes)};
-        const marmitasG = {json.dumps(marmitas_g)};
-        const marmitasP = {json.dumps(marmitas_p)};
-        const margens = {json.dumps(margens)};
+        // === DADOS COMPLETOS ===
+        const DADOS = {json.dumps(registros_json)};
+        const DIAS_LABELS = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado', 'Domingo'];
 
-        // Grafico Receita Diaria
-        new Chart(document.getElementById('chartReceita'), {{
-            type: 'bar',
-            data: {{
-                labels: datas,
-                datasets: [
-                    {{ label: 'Receita', data: receitas, backgroundColor: 'rgba(33,150,243,0.3)', borderColor: 'rgba(33,150,243,1)', borderWidth: 1 }},
-                    {{ label: 'Media Movel 7d', data: mm7, type: 'line', borderColor: '#1565C0', borderWidth: 2, pointRadius: 0, fill: false }}
-                ]
-            }},
-            options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
-        }});
+        // === REFERENCIAS DOS GRAFICOS ===
+        let chartPrincipal = null;
+        let chartDiaSemana = null;
+        let chartQuantidades = null;
+        let chartMarmitas = null;
+        let chartMargem = null;
 
-        // Dia da Semana - Receita
-        new Chart(document.getElementById('chartDiaSemana'), {{
-            type: 'bar',
-            data: {{
-                labels: diasLabels,
-                datasets: [{{ label: 'Receita Media (R$)', data: diasReceita, backgroundColor: 'rgba(33,150,243,0.6)' }}]
-            }},
-            options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
-        }});
+        // === FUNCOES UTILITARIAS ===
+        function formatarMoeda(valor) {{
+            return 'R$ ' + valor.toFixed(2).replace('.', ',').replace(/\\B(?=(\\d{{3}})+(?!\\d))/g, '.');
+        }}
 
-        // Dia da Semana - Refeicoes
-        new Chart(document.getElementById('chartRefeicoesDia'), {{
-            type: 'bar',
-            data: {{
-                labels: diasLabels,
-                datasets: [{{ label: 'Refeicoes Media', data: diasRefeicoes, backgroundColor: 'rgba(76,175,80,0.6)' }}]
-            }},
-            options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
-        }});
+        function calcularMediaMovel(valores, janela) {{
+            return valores.map((_, i) => {{
+                const inicio = Math.max(0, i - janela + 1);
+                const slice = valores.slice(inicio, i + 1);
+                return slice.reduce((a, b) => a + b, 0) / slice.length;
+            }});
+        }}
 
-        // Marmitas
-        new Chart(document.getElementById('chartMarmitas'), {{
-            type: 'line',
-            data: {{
-                labels: datas,
-                datasets: [
-                    {{ label: 'Grandes', data: marmitasG, borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', fill: true }},
-                    {{ label: 'Pequenas', data: marmitasP, borderColor: '#FFC107', backgroundColor: 'rgba(255,193,7,0.1)', fill: true }}
-                ]
-            }},
-            options: {{ responsive: true }}
-        }});
+        // === FUNCAO DE FILTRO ===
+        function filtrarDados() {{
+            const tipoFiltro = document.getElementById('filtroTipo').value;
+            const mesFiltro = document.getElementById('filtroMes').value;
+            const diaFiltro = document.getElementById('filtroDia').value;
 
-        // Margem
-        new Chart(document.getElementById('chartMargem'), {{
-            type: 'bar',
-            data: {{
-                labels: datas,
-                datasets: [{{
-                    label: 'Margem (R$)',
-                    data: margens,
-                    backgroundColor: margens.map(v => v >= 0 ? 'rgba(76,175,80,0.6)' : 'rgba(244,67,54,0.6)')
-                }}]
-            }},
-            options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
-        }});
+            let filtrados = DADOS;
+
+            // Filtro por mes
+            if (mesFiltro !== 'todos') {{
+                filtrados = filtrados.filter(r => r.mes === mesFiltro);
+            }}
+
+            // Filtro por dia da semana
+            if (diaFiltro !== 'todos') {{
+                filtrados = filtrados.filter(r => r.weekday_num === parseInt(diaFiltro));
+            }}
+
+            return {{ filtrados, tipoFiltro }};
+        }}
+
+        // === FUNCAO PARA OBTER VALORES POR TIPO ===
+        function getValoresPorTipo(registros, tipo) {{
+            switch(tipo) {{
+                case 'salao':
+                    return registros.map(r => r.refeicoes_salao);
+                case 'marmitas_g':
+                    return registros.map(r => r.marmitas_g);
+                case 'marmitas_p':
+                    return registros.map(r => r.marmitas_p);
+                case 'marmitas_todas':
+                    return registros.map(r => r.total_marmitas);
+                default:
+                    return registros.map(r => r.refeicoes);
+            }}
+        }}
+
+        function getTituloTipo(tipo) {{
+            switch(tipo) {{
+                case 'salao': return 'Refeicoes do Salao';
+                case 'marmitas_g': return 'Marmitas Grandes';
+                case 'marmitas_p': return 'Marmitas Pequenas';
+                case 'marmitas_todas': return 'Total Marmitas (G+P)';
+                default: return 'Total Refeicoes';
+            }}
+        }}
+
+        // === ATUALIZAR DASHBOARD ===
+        function atualizarDashboard() {{
+            const {{ filtrados, tipoFiltro }} = filtrarDados();
+
+            if (filtrados.length === 0) {{
+                document.getElementById('headerPeriodo').textContent = 'Nenhum dado encontrado para os filtros selecionados';
+                return;
+            }}
+
+            // Atualizar periodo
+            const primeiro = filtrados[0];
+            const ultimo = filtrados[filtrados.length - 1];
+            document.getElementById('headerPeriodo').textContent =
+                `${{primeiro.data}} a ${{ultimo.data}} | ${{filtrados.length}} dias (filtrado)`;
+
+            // Atualizar cards
+            const receitas = filtrados.map(r => r.receita);
+            const receitaTotal = receitas.reduce((a, b) => a + b, 0);
+            const receitaMedia = receitaTotal / filtrados.length;
+            const refeicoes = filtrados.map(r => r.refeicoes).reduce((a, b) => a + b, 0);
+            const salao = filtrados.map(r => r.refeicoes_salao).reduce((a, b) => a + b, 0);
+            const marmG = filtrados.map(r => r.marmitas_g).reduce((a, b) => a + b, 0);
+            const marmP = filtrados.map(r => r.marmitas_p).reduce((a, b) => a + b, 0);
+            const margens = filtrados.map(r => r.margem);
+            const margemMedia = margens.reduce((a, b) => a + b, 0) / filtrados.length;
+
+            document.getElementById('cardReceita').textContent = formatarMoeda(receitaTotal);
+            document.getElementById('cardReceitaMedia').textContent = formatarMoeda(receitaMedia);
+            document.getElementById('cardRefeicoes').textContent = Math.round(refeicoes);
+            document.getElementById('cardSalao').textContent = Math.round(salao);
+            document.getElementById('cardMarmitas').textContent = `${{Math.round(marmG)}} / ${{Math.round(marmP)}}`;
+            document.getElementById('cardMargem').textContent = formatarMoeda(margemMedia);
+
+            // === GRAFICOS ===
+            const labels = filtrados.map(r => r.data);
+            const valoresReceita = filtrados.map(r => r.receita);
+            const mm7 = calcularMediaMovel(valoresReceita, 7);
+
+            // Grafico Principal - muda conforme tipo
+            if (chartPrincipal) chartPrincipal.destroy();
+            const valoresQuantidade = getValoresPorTipo(filtrados, tipoFiltro);
+            const tituloTipo = getTituloTipo(tipoFiltro);
+
+            if (tipoFiltro === 'todas') {{
+                document.getElementById('tituloGraficoPrincipal').textContent = 'Receita Diaria + Media Movel (7 dias)';
+                chartPrincipal = new Chart(document.getElementById('chartPrincipal'), {{
+                    type: 'bar',
+                    data: {{
+                        labels: labels,
+                        datasets: [
+                            {{ label: 'Receita', data: valoresReceita, backgroundColor: 'rgba(33,150,243,0.3)', borderColor: 'rgba(33,150,243,1)', borderWidth: 1 }},
+                            {{ label: 'Media Movel 7d', data: mm7, type: 'line', borderColor: '#1565C0', borderWidth: 2, pointRadius: 0, fill: false }}
+                        ]
+                    }},
+                    options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
+                }});
+            }} else {{
+                document.getElementById('tituloGraficoPrincipal').textContent = tituloTipo + ' por Dia';
+                const mm7q = calcularMediaMovel(valoresQuantidade, 7);
+                chartPrincipal = new Chart(document.getElementById('chartPrincipal'), {{
+                    type: 'bar',
+                    data: {{
+                        labels: labels,
+                        datasets: [
+                            {{ label: tituloTipo, data: valoresQuantidade, backgroundColor: 'rgba(76,175,80,0.4)', borderColor: 'rgba(76,175,80,1)', borderWidth: 1 }},
+                            {{ label: 'Media Movel 7d', data: mm7q, type: 'line', borderColor: '#2E7D32', borderWidth: 2, pointRadius: 0, fill: false }}
+                        ]
+                    }},
+                    options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
+                }});
+            }}
+
+            // Grafico por Dia da Semana
+            if (chartDiaSemana) chartDiaSemana.destroy();
+            const porDia = {{}};
+            filtrados.forEach(r => {{
+                if (!porDia[r.weekday_num]) porDia[r.weekday_num] = [];
+                porDia[r.weekday_num].push(tipoFiltro === 'todas' ? r.receita : getValoresPorTipo([r], tipoFiltro)[0]);
+            }});
+            const diasComDados = Object.keys(porDia).sort((a, b) => a - b);
+            const diasLabels = diasComDados.map(d => DIAS_LABELS[d]);
+            const diasMedias = diasComDados.map(d => porDia[d].reduce((a, b) => a + b, 0) / porDia[d].length);
+
+            chartDiaSemana = new Chart(document.getElementById('chartDiaSemana'), {{
+                type: 'bar',
+                data: {{
+                    labels: diasLabels,
+                    datasets: [{{ label: tipoFiltro === 'todas' ? 'Receita Media (R$)' : tituloTipo + ' (media)', data: diasMedias.map(v => Math.round(v * 100) / 100), backgroundColor: 'rgba(33,150,243,0.6)' }}]
+                }},
+                options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
+            }});
+
+            // Grafico Quantidades
+            if (chartQuantidades) chartQuantidades.destroy();
+            document.getElementById('tituloQuantidades').textContent = tipoFiltro === 'todas' ? 'Quantidades por Dia' : tituloTipo + ' por Dia';
+            chartQuantidades = new Chart(document.getElementById('chartQuantidades'), {{
+                type: 'bar',
+                data: {{
+                    labels: labels,
+                    datasets: [{{ label: tituloTipo, data: valoresQuantidade, backgroundColor: 'rgba(255,152,0,0.5)', borderColor: 'rgba(255,152,0,1)', borderWidth: 1 }}]
+                }},
+                options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
+            }});
+
+            // Marmitas
+            if (chartMarmitas) chartMarmitas.destroy();
+            chartMarmitas = new Chart(document.getElementById('chartMarmitas'), {{
+                type: 'line',
+                data: {{
+                    labels: labels,
+                    datasets: [
+                        {{ label: 'Grandes', data: filtrados.map(r => r.marmitas_g), borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', fill: true }},
+                        {{ label: 'Pequenas', data: filtrados.map(r => r.marmitas_p), borderColor: '#FFC107', backgroundColor: 'rgba(255,193,7,0.1)', fill: true }}
+                    ]
+                }},
+                options: {{ responsive: true }}
+            }});
+
+            // Margem
+            if (chartMargem) chartMargem.destroy();
+            chartMargem = new Chart(document.getElementById('chartMargem'), {{
+                type: 'bar',
+                data: {{
+                    labels: labels,
+                    datasets: [{{
+                        label: 'Margem (R$)',
+                        data: margens,
+                        backgroundColor: margens.map(v => v >= 0 ? 'rgba(76,175,80,0.6)' : 'rgba(244,67,54,0.6)')
+                    }}]
+                }},
+                options: {{ responsive: true, plugins: {{ legend: {{ display: false }} }} }}
+            }});
+        }}
+
+        // === EVENTOS DE FILTRO ===
+        document.getElementById('filtroTipo').addEventListener('change', atualizarDashboard);
+        document.getElementById('filtroMes').addEventListener('change', atualizarDashboard);
+        document.getElementById('filtroDia').addEventListener('change', atualizarDashboard);
+
+        function limparFiltros() {{
+            document.getElementById('filtroTipo').value = 'todas';
+            document.getElementById('filtroMes').value = 'todos';
+            document.getElementById('filtroDia').value = 'todos';
+            atualizarDashboard();
+        }}
+
+        // Inicializar
+        atualizarDashboard();
     </script>
 </body>
 </html>"""

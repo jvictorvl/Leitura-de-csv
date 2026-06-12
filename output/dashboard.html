@@ -8,13 +8,25 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; padding: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
+        .header { text-align: center; margin-bottom: 20px; }
         .header h1 { color: #333; font-size: 24px; }
         .header p { color: #666; margin-top: 5px; }
-        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
-        .card .valor { font-size: 24px; font-weight: bold; color: #1976D2; }
-        .card .label { font-size: 12px; color: #666; margin-top: 5px; text-transform: uppercase; }
+
+        /* FILTROS */
+        .filtros { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .filtros h3 { margin-bottom: 12px; color: #333; font-size: 16px; }
+        .filtros-grid { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .filtro-grupo { display: flex; flex-direction: column; gap: 5px; }
+        .filtro-grupo label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; }
+        .filtro-grupo select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: white; cursor: pointer; min-width: 160px; }
+        .filtro-grupo select:focus { outline: none; border-color: #1976D2; box-shadow: 0 0 0 2px rgba(25,118,210,0.2); }
+        .btn-limpar { padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; align-self: flex-end; }
+        .btn-limpar:hover { background: #d32f2f; }
+
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .card { background: white; padding: 18px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center; }
+        .card .valor { font-size: 22px; font-weight: bold; color: #1976D2; }
+        .card .label { font-size: 11px; color: #666; margin-top: 5px; text-transform: uppercase; }
         .chart-container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .chart-container h3 { margin-bottom: 15px; color: #333; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -23,36 +35,77 @@
         th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; font-weight: 600; }
         tr:hover { background: #f0f7ff; }
+        .filtro-ativo { background: #e3f2fd !important; border-color: #1976D2 !important; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Dashboard de Fechamento Diario</h1>
-        <p>01/04/2026 a 30/04/2026 | 25 dias</p>
+        <p id="headerPeriodo">01/04/2026 a 30/04/2026 | 25 dias</p>
     </div>
 
+    <!-- FILTROS -->
+    <div class="filtros">
+        <h3>Filtros</h3>
+        <div class="filtros-grid">
+            <div class="filtro-grupo">
+                <label>Tipo de Refeicao</label>
+                <select id="filtroTipo">
+                    <option value="todas">Todas</option>
+                    <option value="salao">Somente Salao</option>
+                    <option value="marmitas_g">Somente Marmitas Grandes</option>
+                    <option value="marmitas_p">Somente Marmitas Pequenas</option>
+                    <option value="marmitas_todas">Todas as Marmitas (G+P)</option>
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Mes</label>
+                <select id="filtroMes">
+                    <option value="todos">Todos os meses</option>
+                    <option value="2026-04">2026-04</option>
+                </select>
+            </div>
+            <div class="filtro-grupo">
+                <label>Dia da Semana</label>
+                <select id="filtroDia">
+                    <option value="todos">Todos os dias</option>
+                    <option value="0">Segunda</option>
+                    <option value="1">Terca</option>
+                    <option value="2">Quarta</option>
+                    <option value="3">Quinta</option>
+                    <option value="4">Sexta</option>
+                    <option value="5">Sabado</option>
+                    <option value="6">Domingo</option>
+                </select>
+            </div>
+            <button class="btn-limpar" onclick="limparFiltros()">Limpar Filtros</button>
+        </div>
+    </div>
+
+    <!-- CARDS RESUMO -->
     <div class="cards">
-        <div class="card"><div class="valor">R$ 62.375,12</div><div class="label">Receita Total</div></div>
-        <div class="card"><div class="valor">R$ 2.495,00</div><div class="label">Receita Media/Dia</div></div>
-        <div class="card"><div class="valor">3235</div><div class="label">Total Refeicoes</div></div>
-        <div class="card"><div class="valor">1538 / 723</div><div class="label">Marmitas G / P</div></div>
-        <div class="card"><div class="valor">R$ 274,32</div><div class="label">Margem Media/Dia</div></div>
-        <div class="card"><div class="valor">0</div><div class="label">Dias com Correcao</div></div>
+        <div class="card"><div class="valor" id="cardReceita">-</div><div class="label">Receita Total</div></div>
+        <div class="card"><div class="valor" id="cardReceitaMedia">-</div><div class="label">Receita Media/Dia</div></div>
+        <div class="card"><div class="valor" id="cardRefeicoes">-</div><div class="label">Total Refeicoes</div></div>
+        <div class="card"><div class="valor" id="cardSalao">-</div><div class="label">Refeicoes Salao</div></div>
+        <div class="card"><div class="valor" id="cardMarmitas">-</div><div class="label">Marmitas G / P</div></div>
+        <div class="card"><div class="valor" id="cardMargem">-</div><div class="label">Margem Media/Dia</div></div>
     </div>
 
+    <!-- GRAFICOS -->
     <div class="chart-container">
-        <h3>Receita Diaria + Media Movel (7 dias)</h3>
-        <canvas id="chartReceita"></canvas>
+        <h3 id="tituloGraficoPrincipal">Receita Diaria + Media Movel (7 dias)</h3>
+        <canvas id="chartPrincipal"></canvas>
     </div>
 
     <div class="grid-2">
         <div class="chart-container">
-            <h3>Receita Media por Dia da Semana</h3>
+            <h3>Por Dia da Semana</h3>
             <canvas id="chartDiaSemana"></canvas>
         </div>
         <div class="chart-container">
-            <h3>Refeicoes por Dia da Semana</h3>
-            <canvas id="chartRefeicoesDia"></canvas>
+            <h3 id="tituloQuantidades">Quantidades por Dia</h3>
+            <canvas id="chartQuantidades"></canvas>
         </div>
     </div>
 
@@ -71,75 +124,225 @@
     </div>
 
     <script>
-        const datas = ["01/04", "02/04", "04/04", "06/04", "07/04", "08/04", "09/04", "10/04", "11/04", "13/04", "14/04", "15/04", "16/04", "17/04", "18/04", "20/04", "21/04", "22/04", "23/04", "24/04", "25/04", "27/04", "28/04", "29/04", "30/04"];
-        const receitas = [3476.92, 2433.4, 2181.0, 1862.4, 2742.6, 3683.54, 2540.0, 2618.9, 3632.56, 2344.7, 2049.0, 2093.4, 3278.3, 2945.9, 3129.2, 1202.0, 1447.9, 2312.8, 2084.9, 2467.4, 3041.1, 1813.0, 2060.9, 2248.0, 2685.3];
-        const mm7 = [3476.92, 2955.16, 2697.11, 2488.43, 2539.26, 2729.98, 2702.84, 2580.26, 2751.57, 2774.96, 2801.61, 2708.87, 2650.98, 2708.97, 2781.87, 2434.64, 2306.53, 2344.21, 2343.0, 2227.16, 2240.76, 2052.73, 2175.43, 2289.73, 2342.94];
-        const diasLabels = ["Segunda", "Ter\u00e7a", "Quarta", "Quinta", "Sexta", "S\u00e1bado"];
-        const diasReceita = [1805.53, 2075.1, 2762.93, 2604.38, 2677.4, 2995.97];
-        const diasRefeicoes = [188.0, 85.5, 94.4, 160.0, 120.3, 127.0];
-        const marmitasG = [31.0, 132.0, 41.0, 106.0, 37.0, 24.0, 135.0, 41.0, 52.0, 121.0, 40.0, 28.0, 79.0, 49.0, 48.0, 136.0, 29.0, 20.0, 42.0, 34.0, 44.0, 175.0, 30.0, 26.0, 38.0];
-        const marmitasP = [41.0, 31.0, 22.0, 25.0, 18.0, 31.0, 23.0, 31.0, 42.0, 18.0, 32.0, 22.0, 35.0, 26.0, 31.0, 23.0, 14.0, 39.0, 20.0, 44.0, 40.0, 25.0, 24.0, 31.0, 35.0];
-        const margens = [1446.87, 1483.37, 887.25, -1366.38, -1836.76, 3433.54, -5378.44, 1961.77, 3087.48, -1472.25, 1367.51, -726.55, 1561.2, 547.85, 1762.09, -2096.8, 1367.9, 19.83, -15.05, 796.21, 1067.52, -1472.62, 319.5, -576.21, 689.1];
+        // === DADOS COMPLETOS ===
+        const DADOS = [{"data": "01/04", "data_full": "2026-04-01", "mes": "2026-04", "weekday": "quarta-feira", "weekday_num": 2, "receita": 3476.92, "despesa": 2030.05, "refeicoes": 102.0, "refeicoes_salao": 30.0, "marmitas_g": 31.0, "marmitas_p": 41.0, "total_marmitas": 72.0, "margem": 1446.87}, {"data": "02/04", "data_full": "2026-04-02", "mes": "2026-04", "weekday": "quinta-feira", "weekday_num": 3, "receita": 2433.4, "despesa": 950.03, "refeicoes": 215.0, "refeicoes_salao": 52.0, "marmitas_g": 132.0, "marmitas_p": 31.0, "total_marmitas": 163.0, "margem": 1483.37}, {"data": "04/04", "data_full": "2026-04-04", "mes": "2026-04", "weekday": "sabado", "weekday_num": 5, "receita": 2181.0, "despesa": 1293.75, "refeicoes": 94.0, "refeicoes_salao": 31.0, "marmitas_g": 41.0, "marmitas_p": 22.0, "total_marmitas": 63.0, "margem": 887.25}, {"data": "06/04", "data_full": "2026-04-06", "mes": "2026-04", "weekday": "segunda-feira", "weekday_num": 0, "receita": 1862.4, "despesa": 3228.78, "refeicoes": 158.0, "refeicoes_salao": 27.0, "marmitas_g": 106.0, "marmitas_p": 25.0, "total_marmitas": 131.0, "margem": -1366.38}, {"data": "07/04", "data_full": "2026-04-07", "mes": "2026-04", "weekday": "terca-feira", "weekday_num": 1, "receita": 2742.6, "despesa": 4579.36, "refeicoes": 100.0, "refeicoes_salao": 45.0, "marmitas_g": 37.0, "marmitas_p": 18.0, "total_marmitas": 55.0, "margem": -1836.76}, {"data": "08/04", "data_full": "2026-04-08", "mes": "2026-04", "weekday": "quarta-feira", "weekday_num": 2, "receita": 3683.54, "despesa": 250.0, "refeicoes": 89.0, "refeicoes_salao": 34.0, "marmitas_g": 24.0, "marmitas_p": 31.0, "total_marmitas": 55.0, "margem": 3433.54}, {"data": "09/04", "data_full": "2026-04-09", "mes": "2026-04", "weekday": "quinta-feira", "weekday_num": 3, "receita": 2540.0, "despesa": 7918.44, "refeicoes": 196.0, "refeicoes_salao": 38.0, "marmitas_g": 135.0, "marmitas_p": 23.0, "total_marmitas": 158.0, "margem": -5378.44}, {"data": "10/04", "data_full": "2026-04-10", "mes": "2026-04", "weekday": "sexta-feira", "weekday_num": 4, "receita": 2618.9, "despesa": 657.13, "refeicoes": 114.0, "refeicoes_salao": 42.0, "marmitas_g": 41.0, "marmitas_p": 31.0, "total_marmitas": 72.0, "margem": 1961.77}, {"data": "11/04", "data_full": "2026-04-11", "mes": "2026-04", "weekday": "sabado", "weekday_num": 5, "receita": 3632.56, "despesa": 545.08, "refeicoes": 154.0, "refeicoes_salao": 60.0, "marmitas_g": 52.0, "marmitas_p": 42.0, "total_marmitas": 94.0, "margem": 3087.48}, {"data": "13/04", "data_full": "2026-04-13", "mes": "2026-04", "weekday": "segunda-feira", "weekday_num": 0, "receita": 2344.7, "despesa": 3816.95, "refeicoes": 189.0, "refeicoes_salao": 50.0, "marmitas_g": 121.0, "marmitas_p": 18.0, "total_marmitas": 139.0, "margem": -1472.25}, {"data": "14/04", "data_full": "2026-04-14", "mes": "2026-04", "weekday": "terca-feira", "weekday_num": 1, "receita": 2049.0, "despesa": 681.49, "refeicoes": 99.0, "refeicoes_salao": 27.0, "marmitas_g": 40.0, "marmitas_p": 32.0, "total_marmitas": 72.0, "margem": 1367.51}, {"data": "15/04", "data_full": "2026-04-15", "mes": "2026-04", "weekday": "quarta-feira", "weekday_num": 2, "receita": 2093.4, "despesa": 2819.95, "refeicoes": 86.0, "refeicoes_salao": 36.0, "marmitas_g": 28.0, "marmitas_p": 22.0, "total_marmitas": 50.0, "margem": -726.55}, {"data": "16/04", "data_full": "2026-04-16", "mes": "2026-04", "weekday": "quinta-feira", "weekday_num": 3, "receita": 3278.3, "despesa": 1717.1, "refeicoes": 174.0, "refeicoes_salao": 60.0, "marmitas_g": 79.0, "marmitas_p": 35.0, "total_marmitas": 114.0, "margem": 1561.2}, {"data": "17/04", "data_full": "2026-04-17", "mes": "2026-04", "weekday": "sexta-feira", "weekday_num": 4, "receita": 2945.9, "despesa": 2398.05, "refeicoes": 125.0, "refeicoes_salao": 50.0, "marmitas_g": 49.0, "marmitas_p": 26.0, "total_marmitas": 75.0, "margem": 547.85}, {"data": "18/04", "data_full": "2026-04-18", "mes": "2026-04", "weekday": "sabado", "weekday_num": 5, "receita": 3129.2, "despesa": 1367.11, "refeicoes": 132.0, "refeicoes_salao": 53.0, "marmitas_g": 48.0, "marmitas_p": 31.0, "total_marmitas": 79.0, "margem": 1762.09}, {"data": "20/04", "data_full": "2026-04-20", "mes": "2026-04", "weekday": "segunda-feira", "weekday_num": 0, "receita": 1202.0, "despesa": 3298.8, "refeicoes": 174.0, "refeicoes_salao": 15.0, "marmitas_g": 136.0, "marmitas_p": 23.0, "total_marmitas": 159.0, "margem": -2096.8}, {"data": "21/04", "data_full": "2026-04-21", "mes": "2026-04", "weekday": "terca-feira", "weekday_num": 1, "receita": 1447.9, "despesa": 80.0, "refeicoes": 60.0, "refeicoes_salao": 17.0, "marmitas_g": 29.0, "marmitas_p": 14.0, "total_marmitas": 43.0, "margem": 1367.9}, {"data": "22/04", "data_full": "2026-04-22", "mes": "2026-04", "weekday": "quarta-feira", "weekday_num": 2, "receita": 2312.8, "despesa": 2292.97, "refeicoes": 97.0, "refeicoes_salao": 38.0, "marmitas_g": 20.0, "marmitas_p": 39.0, "total_marmitas": 59.0, "margem": 19.83}, {"data": "23/04", "data_full": "2026-04-23", "mes": "2026-04", "weekday": "quinta-feira", "weekday_num": 3, "receita": 2084.9, "despesa": 2099.95, "refeicoes": 97.0, "refeicoes_salao": 35.0, "marmitas_g": 42.0, "marmitas_p": 20.0, "total_marmitas": 62.0, "margem": -15.05}, {"data": "24/04", "data_full": "2026-04-24", "mes": "2026-04", "weekday": "sexta-feira", "weekday_num": 4, "receita": 2467.4, "despesa": 1671.19, "refeicoes": 122.0, "refeicoes_salao": 44.0, "marmitas_g": 34.0, "marmitas_p": 44.0, "total_marmitas": 78.0, "margem": 796.21}, {"data": "25/04", "data_full": "2026-04-25", "mes": "2026-04", "weekday": "sabado", "weekday_num": 5, "receita": 3041.1, "despesa": 1973.58, "refeicoes": 128.0, "refeicoes_salao": 44.0, "marmitas_g": 44.0, "marmitas_p": 40.0, "total_marmitas": 84.0, "margem": 1067.52}, {"data": "27/04", "data_full": "2026-04-27", "mes": "2026-04", "weekday": "segunda-feira", "weekday_num": 0, "receita": 1813.0, "despesa": 3285.62, "refeicoes": 231.0, "refeicoes_salao": 31.0, "marmitas_g": 175.0, "marmitas_p": 25.0, "total_marmitas": 200.0, "margem": -1472.62}, {"data": "28/04", "data_full": "2026-04-28", "mes": "2026-04", "weekday": "terca-feira", "weekday_num": 1, "receita": 2060.9, "despesa": 1741.4, "refeicoes": 83.0, "refeicoes_salao": 29.0, "marmitas_g": 30.0, "marmitas_p": 24.0, "total_marmitas": 54.0, "margem": 319.5}, {"data": "29/04", "data_full": "2026-04-29", "mes": "2026-04", "weekday": "quarta-feira", "weekday_num": 2, "receita": 2248.0, "despesa": 2824.21, "refeicoes": 98.0, "refeicoes_salao": 41.0, "marmitas_g": 26.0, "marmitas_p": 31.0, "total_marmitas": 57.0, "margem": -576.21}, {"data": "30/04", "data_full": "2026-04-30", "mes": "2026-04", "weekday": "quinta-feira", "weekday_num": 3, "receita": 2685.3, "despesa": 1996.2, "refeicoes": 118.0, "refeicoes_salao": 45.0, "marmitas_g": 38.0, "marmitas_p": 35.0, "total_marmitas": 73.0, "margem": 689.1}];
+        const DIAS_LABELS = ['Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado', 'Domingo'];
 
-        // Grafico Receita Diaria
-        new Chart(document.getElementById('chartReceita'), {
-            type: 'bar',
-            data: {
-                labels: datas,
-                datasets: [
-                    { label: 'Receita', data: receitas, backgroundColor: 'rgba(33,150,243,0.3)', borderColor: 'rgba(33,150,243,1)', borderWidth: 1 },
-                    { label: 'Media Movel 7d', data: mm7, type: 'line', borderColor: '#1565C0', borderWidth: 2, pointRadius: 0, fill: false }
-                ]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'top' } } }
-        });
+        // === REFERENCIAS DOS GRAFICOS ===
+        let chartPrincipal = null;
+        let chartDiaSemana = null;
+        let chartQuantidades = null;
+        let chartMarmitas = null;
+        let chartMargem = null;
 
-        // Dia da Semana - Receita
-        new Chart(document.getElementById('chartDiaSemana'), {
-            type: 'bar',
-            data: {
-                labels: diasLabels,
-                datasets: [{ label: 'Receita Media (R$)', data: diasReceita, backgroundColor: 'rgba(33,150,243,0.6)' }]
-            },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
+        // === FUNCOES UTILITARIAS ===
+        function formatarMoeda(valor) {
+            return 'R$ ' + valor.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
 
-        // Dia da Semana - Refeicoes
-        new Chart(document.getElementById('chartRefeicoesDia'), {
-            type: 'bar',
-            data: {
-                labels: diasLabels,
-                datasets: [{ label: 'Refeicoes Media', data: diasRefeicoes, backgroundColor: 'rgba(76,175,80,0.6)' }]
-            },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
+        function calcularMediaMovel(valores, janela) {
+            return valores.map((_, i) => {
+                const inicio = Math.max(0, i - janela + 1);
+                const slice = valores.slice(inicio, i + 1);
+                return slice.reduce((a, b) => a + b, 0) / slice.length;
+            });
+        }
 
-        // Marmitas
-        new Chart(document.getElementById('chartMarmitas'), {
-            type: 'line',
-            data: {
-                labels: datas,
-                datasets: [
-                    { label: 'Grandes', data: marmitasG, borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', fill: true },
-                    { label: 'Pequenas', data: marmitasP, borderColor: '#FFC107', backgroundColor: 'rgba(255,193,7,0.1)', fill: true }
-                ]
-            },
-            options: { responsive: true }
-        });
+        // === FUNCAO DE FILTRO ===
+        function filtrarDados() {
+            const tipoFiltro = document.getElementById('filtroTipo').value;
+            const mesFiltro = document.getElementById('filtroMes').value;
+            const diaFiltro = document.getElementById('filtroDia').value;
 
-        // Margem
-        new Chart(document.getElementById('chartMargem'), {
-            type: 'bar',
-            data: {
-                labels: datas,
-                datasets: [{
-                    label: 'Margem (R$)',
-                    data: margens,
-                    backgroundColor: margens.map(v => v >= 0 ? 'rgba(76,175,80,0.6)' : 'rgba(244,67,54,0.6)')
-                }]
-            },
-            options: { responsive: true, plugins: { legend: { display: false } } }
-        });
+            let filtrados = DADOS;
+
+            // Filtro por mes
+            if (mesFiltro !== 'todos') {
+                filtrados = filtrados.filter(r => r.mes === mesFiltro);
+            }
+
+            // Filtro por dia da semana
+            if (diaFiltro !== 'todos') {
+                filtrados = filtrados.filter(r => r.weekday_num === parseInt(diaFiltro));
+            }
+
+            return { filtrados, tipoFiltro };
+        }
+
+        // === FUNCAO PARA OBTER VALORES POR TIPO ===
+        function getValoresPorTipo(registros, tipo) {
+            switch(tipo) {
+                case 'salao':
+                    return registros.map(r => r.refeicoes_salao);
+                case 'marmitas_g':
+                    return registros.map(r => r.marmitas_g);
+                case 'marmitas_p':
+                    return registros.map(r => r.marmitas_p);
+                case 'marmitas_todas':
+                    return registros.map(r => r.total_marmitas);
+                default:
+                    return registros.map(r => r.refeicoes);
+            }
+        }
+
+        function getTituloTipo(tipo) {
+            switch(tipo) {
+                case 'salao': return 'Refeicoes do Salao';
+                case 'marmitas_g': return 'Marmitas Grandes';
+                case 'marmitas_p': return 'Marmitas Pequenas';
+                case 'marmitas_todas': return 'Total Marmitas (G+P)';
+                default: return 'Total Refeicoes';
+            }
+        }
+
+        // === ATUALIZAR DASHBOARD ===
+        function atualizarDashboard() {
+            const { filtrados, tipoFiltro } = filtrarDados();
+
+            if (filtrados.length === 0) {
+                document.getElementById('headerPeriodo').textContent = 'Nenhum dado encontrado para os filtros selecionados';
+                return;
+            }
+
+            // Atualizar periodo
+            const primeiro = filtrados[0];
+            const ultimo = filtrados[filtrados.length - 1];
+            document.getElementById('headerPeriodo').textContent =
+                `${primeiro.data} a ${ultimo.data} | ${filtrados.length} dias (filtrado)`;
+
+            // Atualizar cards
+            const receitas = filtrados.map(r => r.receita);
+            const receitaTotal = receitas.reduce((a, b) => a + b, 0);
+            const receitaMedia = receitaTotal / filtrados.length;
+            const refeicoes = filtrados.map(r => r.refeicoes).reduce((a, b) => a + b, 0);
+            const salao = filtrados.map(r => r.refeicoes_salao).reduce((a, b) => a + b, 0);
+            const marmG = filtrados.map(r => r.marmitas_g).reduce((a, b) => a + b, 0);
+            const marmP = filtrados.map(r => r.marmitas_p).reduce((a, b) => a + b, 0);
+            const margens = filtrados.map(r => r.margem);
+            const margemMedia = margens.reduce((a, b) => a + b, 0) / filtrados.length;
+
+            document.getElementById('cardReceita').textContent = formatarMoeda(receitaTotal);
+            document.getElementById('cardReceitaMedia').textContent = formatarMoeda(receitaMedia);
+            document.getElementById('cardRefeicoes').textContent = Math.round(refeicoes);
+            document.getElementById('cardSalao').textContent = Math.round(salao);
+            document.getElementById('cardMarmitas').textContent = `${Math.round(marmG)} / ${Math.round(marmP)}`;
+            document.getElementById('cardMargem').textContent = formatarMoeda(margemMedia);
+
+            // === GRAFICOS ===
+            const labels = filtrados.map(r => r.data);
+            const valoresReceita = filtrados.map(r => r.receita);
+            const mm7 = calcularMediaMovel(valoresReceita, 7);
+
+            // Grafico Principal - muda conforme tipo
+            if (chartPrincipal) chartPrincipal.destroy();
+            const valoresQuantidade = getValoresPorTipo(filtrados, tipoFiltro);
+            const tituloTipo = getTituloTipo(tipoFiltro);
+
+            if (tipoFiltro === 'todas') {
+                document.getElementById('tituloGraficoPrincipal').textContent = 'Receita Diaria + Media Movel (7 dias)';
+                chartPrincipal = new Chart(document.getElementById('chartPrincipal'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: 'Receita', data: valoresReceita, backgroundColor: 'rgba(33,150,243,0.3)', borderColor: 'rgba(33,150,243,1)', borderWidth: 1 },
+                            { label: 'Media Movel 7d', data: mm7, type: 'line', borderColor: '#1565C0', borderWidth: 2, pointRadius: 0, fill: false }
+                        ]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'top' } } }
+                });
+            } else {
+                document.getElementById('tituloGraficoPrincipal').textContent = tituloTipo + ' por Dia';
+                const mm7q = calcularMediaMovel(valoresQuantidade, 7);
+                chartPrincipal = new Chart(document.getElementById('chartPrincipal'), {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            { label: tituloTipo, data: valoresQuantidade, backgroundColor: 'rgba(76,175,80,0.4)', borderColor: 'rgba(76,175,80,1)', borderWidth: 1 },
+                            { label: 'Media Movel 7d', data: mm7q, type: 'line', borderColor: '#2E7D32', borderWidth: 2, pointRadius: 0, fill: false }
+                        ]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'top' } } }
+                });
+            }
+
+            // Grafico por Dia da Semana
+            if (chartDiaSemana) chartDiaSemana.destroy();
+            const porDia = {};
+            filtrados.forEach(r => {
+                if (!porDia[r.weekday_num]) porDia[r.weekday_num] = [];
+                porDia[r.weekday_num].push(tipoFiltro === 'todas' ? r.receita : getValoresPorTipo([r], tipoFiltro)[0]);
+            });
+            const diasComDados = Object.keys(porDia).sort((a, b) => a - b);
+            const diasLabels = diasComDados.map(d => DIAS_LABELS[d]);
+            const diasMedias = diasComDados.map(d => porDia[d].reduce((a, b) => a + b, 0) / porDia[d].length);
+
+            chartDiaSemana = new Chart(document.getElementById('chartDiaSemana'), {
+                type: 'bar',
+                data: {
+                    labels: diasLabels,
+                    datasets: [{ label: tipoFiltro === 'todas' ? 'Receita Media (R$)' : tituloTipo + ' (media)', data: diasMedias.map(v => Math.round(v * 100) / 100), backgroundColor: 'rgba(33,150,243,0.6)' }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            // Grafico Quantidades
+            if (chartQuantidades) chartQuantidades.destroy();
+            document.getElementById('tituloQuantidades').textContent = tipoFiltro === 'todas' ? 'Quantidades por Dia' : tituloTipo + ' por Dia';
+            chartQuantidades = new Chart(document.getElementById('chartQuantidades'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: tituloTipo, data: valoresQuantidade, backgroundColor: 'rgba(255,152,0,0.5)', borderColor: 'rgba(255,152,0,1)', borderWidth: 1 }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            // Marmitas
+            if (chartMarmitas) chartMarmitas.destroy();
+            chartMarmitas = new Chart(document.getElementById('chartMarmitas'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Grandes', data: filtrados.map(r => r.marmitas_g), borderColor: '#2196F3', backgroundColor: 'rgba(33,150,243,0.1)', fill: true },
+                        { label: 'Pequenas', data: filtrados.map(r => r.marmitas_p), borderColor: '#FFC107', backgroundColor: 'rgba(255,193,7,0.1)', fill: true }
+                    ]
+                },
+                options: { responsive: true }
+            });
+
+            // Margem
+            if (chartMargem) chartMargem.destroy();
+            chartMargem = new Chart(document.getElementById('chartMargem'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Margem (R$)',
+                        data: margens,
+                        backgroundColor: margens.map(v => v >= 0 ? 'rgba(76,175,80,0.6)' : 'rgba(244,67,54,0.6)')
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // === EVENTOS DE FILTRO ===
+        document.getElementById('filtroTipo').addEventListener('change', atualizarDashboard);
+        document.getElementById('filtroMes').addEventListener('change', atualizarDashboard);
+        document.getElementById('filtroDia').addEventListener('change', atualizarDashboard);
+
+        function limparFiltros() {
+            document.getElementById('filtroTipo').value = 'todas';
+            document.getElementById('filtroMes').value = 'todos';
+            document.getElementById('filtroDia').value = 'todos';
+            atualizarDashboard();
+        }
+
+        // Inicializar
+        atualizarDashboard();
     </script>
 </body>
 </html>
